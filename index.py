@@ -22,7 +22,7 @@ while True:
     if cont == 1:
         print('Iniciando...')
     cont += 1
-    os.system('ping -c 4 172.217.6.36 > teste_conexao.txt')
+    os.system('ping 172.217.6.36 > teste_conexao.txt')
     with open('teste_conexao.txt', 'r') as file:
         leitura = file.read()
 
@@ -31,7 +31,6 @@ while True:
         print("Verificando conexão com a Internet" + "." * m)
         time.sleep(1)
         
-    
     if 'ms' in leitura:
         print('Conexão bem sucedida!')
         time.sleep(1)
@@ -97,4 +96,4 @@ for item in lista:
     
     #Criar arquivos .txt para cada título das leituras do dia
     with open(f"{diretorio_atual}/arquivos_txt/{item}.txt", "w", encoding="utf-8") as arquivo:
-            arquivo.write(str(titulo))
+            arquivo.write(str(titulo).rstrip())
