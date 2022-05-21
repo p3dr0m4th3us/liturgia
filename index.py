@@ -1,99 +1,66 @@
-#Importando as bibliotecas necessárias [pip install requests], [pip install beautifulsoup4], [pip install lxml]
-#Todas as outras bibliotecas são padrões do Python
-
-from bs4 import BeautifulSoup
-from urllib.request import urlopen
 import os
-import requests
-import datetime
 import time
+import datetime
+import requests
+import bs4
+#Pegar data do dia
+data_atual = datetime.date.today().strftime('%d/%m/%Y')
 
-#Pegar localização do diretório atual
-diretorio_atual = os.getcwd()
-
-#Pegar as informações de data e dia da semana formatados
-data_e_hora_atuais = datetime.datetime.now()
-data_em_texto = data_e_hora_atuais.strftime('%d/%m/%Y')
-hora = data_e_hora_atuais.strftime('%H:%M')
-
-#Verificar conexão com a Internet
-cont = 1
+#Fazer requisição da liturgia (https://liturgia.cancaonova.com/pb/json-liturgia)
+url = "https://liturgia.cancaonova.com/pb/json-liturgia"
 while True:
-    if cont == 1:
-        print('Iniciando...')
-    cont += 1
-    os.system('ping 172.217.6.36 > teste_conexao.txt')
-    with open('teste_conexao.txt', 'r') as file:
-        leitura = file.read()
-
-    for m in range(1, 4):
-        os.system('cls')
-        print("Verificando conexão com a Internet" + "." * m)
-        time.sleep(1)
-        
-    if 'ms' in leitura:
-        print('Conexão bem sucedida!')
-        time.sleep(1)
-        print('Recebendo informações necessárias...')
+    def check_internet():
+        try:
+            requests.get(url)
+            return True
+        except requests.exceptions.ConnectionError:
+            return False
+    if not check_internet():
+        print('TENTANDO CONEXÃO COM A INTERNET...')
         time.sleep(3)
+        os.system('cls')
+    else:
+        request = requests.get(url)
         break
 
-#Faz a requisição ao site da Canção Nova
-url_liturgia = "https://liturgia.cancaonova.com/pb/json-liturgia/"
-dados = requests.get(url_liturgia)
+#Tratar para JSON a requisição
+lista_liturgias = request.json()['liturgias']
 
-# Verificar qual "i" se refere ao dia de hoje
-i = 0
+#Verificar qual indice do dia atual
+for c in range(0, len(lista_liturgias)):
+    if lista_liturgias[c]['dia'] == data_atual:
+        indice = c
 
-while True:
-    elemento = dados.json()["liturgias"][i]
-    dia_elemento = elemento["dia"]
-    if dia_elemento == data_em_texto:
-        break
-    i += 1
+#Verificar se tem 2º leitura
+lista_leitura = ['leitura1', 'salmo', 'leitura2', 'evangelho']
+if lista_liturgias[indice]['leitura2'] == "":
+    lista_leitura = ['leitura1', 'salmo', 'evangelho']
 
-#Condição para transformar a liturgia de sábado, depois das 12, a mesma de domingo
-if "Sábado" in elemento["titulo"] and hora > 12:
-    i -= 1
+#Pegar 1º e 2º Leitura, Salmo, e Evangelho
+for item in lista_leitura:
+    lista_textos = []
 
-#Lista das leituras da Santa Missa (Dia de semana não tem 2º Leitura)
-#Ver as outras leituras
-lista = ["leitura1", "salmo", "leitura2", "evangelho"]
-if elemento["leitura2"] == "":
-    lista = ["leitura1", "salmo", "evangelho"]
+    html_doc = lista_liturgias[indice][item]
+    soup = bs4.BeautifulSoup(html_doc, 'html.parser')
+    titulo = soup.find("p", {"style": "text-align: left;"}).text.strip()
 
-#Cria as pastas necessárias
-if not os.path.exists("paginas_html"):
-    os.mkdir("paginas_html")
-if not os.path.exists("arquivos_txt"):
-    os.mkdir("arquivos_txt")
-lista_liturgia = ["Liturgia da palavra de hoje:\n"]
-for item in lista:
-    
-    #Criar para cada item da lista um arquivo .html somente com a leitura do dia
-    with open(f"{diretorio_atual}/paginas_html/{item}.html", "w", encoding="utf-8") as arquivo:
-        arquivo.write(elemento[f"{item}"])
-    
-    #Extrair do .html somente o título das leituras do dia
-    url = f'file:///{diretorio_atual}/paginas_html/{item}.html'
-    html = urlopen(url)
-    bs = BeautifulSoup(html, 'lxml')
-    
-    titulo = bs.select('p strong')[0].text
-    if "Responsório" in titulo:
-        titulo = str(titulo).replace("Responsório", "Salmo")
-    lista_liturgia.append(str(titulo).rstrip())
-    
-    with open(f"{diretorio_atual}/arquivos_txt/titulos.txt", "w", encoding="utf-8") as n:
-        for elem in lista_liturgia:
-                n.write(f"{elem}\n")
-        
+    # Adicionando a resposta do Salmo e modificando "Responsório" para "Salmo"
+    if item == 'salmo':
+        resposta = soup.findAll("p", {"style": "text-align: left;"})[2].text.strip()
+        resposta = titulo.replace("Responsório", "Salmo") + " " + resposta
+        lista_textos.append(resposta)
 
-    #Quando for o Salmo, adiciona a resposta.
-    if item == "salmo":
-        titulo = f"{titulo.rstrip()} {bs.select('p strong')[1].text} — "
-    
-    
-    #Criar arquivos .txt para cada título das leituras do dia
-    with open(f"{diretorio_atual}/arquivos_txt/{item}.txt", "w", encoding="utf-8") as arquivo:
-            arquivo.write(str(titulo).rstrip())
+    # Modificando "Anúncio do Evangelho" para "Evangelho"
+    if item == 'evangelho':
+        if titulo.find("Anúncio") != -1:
+            titulo = titulo.replace("Anúncio do Evangelho", "Evangelho")
+        lista_textos.append(titulo)
+
+    else:
+        lista_textos.append(titulo)
+    print(lista_textos)
+
+    # Loop para adicionar os títulos em arquivos de textos
+    for item2 in lista_textos:
+        with open(f'{item}.txt', 'w', encoding='utf-8') as arquivo:
+            arquivo.write(f" {item2} ")
